@@ -109,6 +109,11 @@ extension CKRecordConvertible where Self: Object {
                     guard let list = item as? List<Date>, !list.isEmpty else { break }
                     let array = Array(list)
                     r[prop.name] = array as CKRecordValue
+                case .object:
+                    guard let list = item as? ListBase, list.count > 0 else { break }
+                    guard let convertible = list._rlmArray.value(forKey: "self") as? [CKRecordConvertible] else { break }
+                    let array = convertible.map { CKRecord.Reference(recordID: $0.recordID, action: .none) }
+                    r[prop.name] = array as CKRecordValue
                 default:
                     break
                     /// Other inner types of List is not supported yet
