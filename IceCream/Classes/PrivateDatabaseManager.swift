@@ -135,7 +135,12 @@ final class PrivateDatabaseManager: DatabaseManager {
     }
     
     private func fetchChangesInZones(_ callback: ((Error?) -> Void)? = nil) {
-        let changesOp = CKFetchRecordZoneChangesOperation(recordZoneIDs: zoneIds, optionsByRecordZoneID: zoneIdOptions)
+        let changesOp: CKFetchRecordZoneChangesOperation
+        if #available(iOS 12.0, *) {
+            changesOp = CKFetchRecordZoneChangesOperation(recordZoneIDs: zoneIds, configurationsByRecordZoneID: zoneIdConfigurations)
+        } else {
+            changesOp = CKFetchRecordZoneChangesOperation(recordZoneIDs: zoneIds, optionsByRecordZoneID: zoneIdOptions)
+        }
         changesOp.fetchAllChanges = true
         
         changesOp.recordZoneChangeTokensUpdatedBlock = { [weak self] zoneId, token, _ in
@@ -198,14 +203,23 @@ extension PrivateDatabaseManager {
             /// For the very first time when launching, the token will be nil and the server will be giving everything on the Cloud to client
             /// In other situation just get the unarchive the data object
             guard let tokenData = UserDefaults.standard.object(forKey: IceCreamKey.databaseChangesTokenKey.value) as? Data else { return nil }
-            return NSKeyedUnarchiver.unarchiveObject(with: tokenData) as? CKServerChangeToken
+            if #available(iOS 11.0, *) {
+                return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: tokenData)
+            } else {
+                return NSKeyedUnarchiver.unarchiveObject(with: tokenData) as? CKServerChangeToken
+            }
         }
         set {
             guard let n = newValue else {
                 UserDefaults.standard.removeObject(forKey: IceCreamKey.databaseChangesTokenKey.value)
                 return
             }
-            let data = NSKeyedArchiver.archivedData(withRootObject: n)
+            let data: Data
+            if #available(iOS 11.0, *) {
+                data = try! NSKeyedArchiver.archivedData(withRootObject: n, requiringSecureCoding: false)
+            } else {
+                data = NSKeyedArchiver.archivedData(withRootObject: n)
+            }
             UserDefaults.standard.set(data, forKey: IceCreamKey.databaseChangesTokenKey.value)
         }
     }
@@ -223,7 +237,19 @@ extension PrivateDatabaseManager {
     private var zoneIds: [CKRecordZone.ID] {
         return syncObjects.map { $0.zoneID }
     }
-    
+
+    @available(iOS 12.0, *)
+    private var zoneIdConfigurations: [CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneConfiguration] {
+        return syncObjects.reduce([CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneConfiguration]()) { dict, syncObject in
+        var dict = dict
+        let zoneChangesOptions = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+        zoneChangesOptions.previousServerChangeToken = syncObject.zoneChangesToken
+        dict[syncObject.zoneID] = zoneChangesOptions
+        return dict
+        }
+    }
+
+    @available(iOS, deprecated: 12.0)
     private var zoneIdOptions: [CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneOptions] {
         return syncObjects.reduce([CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneOptions]()) { (dict, syncObject) -> [CKRecordZone.ID: CKFetchRecordZoneChangesOperation.ZoneOptions] in
             var dict = dict
