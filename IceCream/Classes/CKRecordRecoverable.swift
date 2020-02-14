@@ -55,6 +55,18 @@ extension CKRecordRecoverable where Self: Object {
                     let list = List<Date>()
                     list.append(objectsIn: value)
                     recordValue = list
+                case .object:
+                    guard let references = record.value(forKey: prop.name) as? [CKRecord.Reference],
+                        let ownerType = prop.objectClassName,
+                        let schema = realm.schema.objectSchema.first(where: { $0.className == ownerType })
+                    else { break }
+                    let values: [DynamicObject] = references.compactMap { reference in
+                        let value = primaryKeyForRecordID(recordID: reference.recordID, schema: schema).flatMap { key in
+                            return realm.dynamicObject(ofType: ownerType, forPrimaryKey: key)
+                        }
+                        return value
+                    }
+                    recordValue = values
                 default:
                     break
                 }
