@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "IceCream", type: .dynamic, targets: ["IceCream"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:realm/realm-cocoa.git", from: "4.0.0")
+        .package(url: "https://github.com/realm/realm-cocoa.git", from: "4.0.0")
     ],
     targets: [
         .target(name: "IceCream", dependencies: ["RealmSwift"], path: "IceCream/Classes"),
